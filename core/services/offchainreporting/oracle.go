@@ -10,7 +10,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/smartcontractkit/chainlink/core/logger"
-	"github.com/smartcontractkit/chainlink/core/networking"
 	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/chainlink/core/services/job"
 	"github.com/smartcontractkit/chainlink/core/services/pipeline"
@@ -110,7 +109,7 @@ func (d jobSpawnerDelegate) ServicesForSpec(spec job.Spec) ([]job.Service, error
 		return nil, errors.Errorf("OCR key '%v' does not exist", concreteSpec.EncryptedOCRKeyBundleID)
 	}
 
-	peerstore, err := networking.NewPeerstore(context.Background(), d.db.DB())
+	peerstore, err := NewPeerstore(context.Background(), d.db.DB())
 	if err != nil {
 		return nil, errors.Wrap(err, "could not make new peerstore")
 	}

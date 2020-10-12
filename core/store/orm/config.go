@@ -411,6 +411,14 @@ func (c Config) JobPipelineParallelism() uint8 {
 	return c.getWithFallback("JobPipelineParallelism", parseUint8).(uint8)
 }
 
+func (c Config) JobPipelineReaperInterval() time.Duration {
+	return c.viper.GetDuration(EnvVarName("JobPipelineReaperInterval"))
+}
+
+func (c Config) JobPipelineReaperThreshold() time.Duration {
+	return c.viper.GetDuration(EnvVarName("JobPipelineReaperThreshold"))
+}
+
 // JSONConsole enables the JSON console.
 func (c Config) JSONConsole() bool {
 	return c.viper.GetBool(EnvVarName("JSONConsole"))

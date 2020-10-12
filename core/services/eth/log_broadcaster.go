@@ -6,14 +6,15 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/smartcontractkit/chainlink/core/logger"
-	"github.com/smartcontractkit/chainlink/core/store/models"
-	"github.com/smartcontractkit/chainlink/core/utils"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/pkg/errors"
 	"github.com/tevino/abool"
+
+	"github.com/smartcontractkit/chainlink/core/logger"
+	"github.com/smartcontractkit/chainlink/core/store/models"
+	"github.com/smartcontractkit/chainlink/core/utils"
 )
 
 //go:generate mockery --name LogBroadcaster --output ../../internal/mocks/ --case=underscore
@@ -27,9 +28,9 @@ import (
 type LogBroadcaster interface {
 	utils.DependentAwaiter
 	Start() error
+	Stop() error
 	Register(address common.Address, listener LogListener) (connected bool)
 	Unregister(address common.Address, listener LogListener)
-	Stop()
 }
 
 // The LogListener responds to log events through HandleLog, and contains setup/tear-down
@@ -61,6 +62,7 @@ type logBroadcaster struct {
 	chAddListener    chan registration
 	chRemoveListener chan registration
 
+	utils.StartStopOnce
 	utils.DependentAwaiter
 	chStop chan struct{}
 	chDone chan struct{}
@@ -141,8 +143,10 @@ type registration struct {
 }
 
 func (b *logBroadcaster) Start() error {
+	if !b.OkayToStart() {
+		return errors.New("LogBroadcaster is already started")
+	}
 	go b.awaitInitialSubscribers()
-	b.started.Set()
 	return nil
 }
 
@@ -171,13 +175,13 @@ func (b *logBroadcaster) addresses() []common.Address {
 	return addresses
 }
 
-func (b *logBroadcaster) Stop() {
-	close(b.chStop)
-	if b.started.IsSet() {
-		<-b.chDone
-		b.started.UnSet()
-
+func (b *logBroadcaster) Stop() error {
+	if !b.OkayToStop() {
+		return errors.New("LogBroadcaster is already stopped")
 	}
+	close(b.chStop)
+	<-b.chDone
+	return nil
 }
 
 func (b *logBroadcaster) Register(address common.Address, listener LogListener) (connected bool) {

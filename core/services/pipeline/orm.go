@@ -24,6 +24,7 @@ type ORM interface {
 	AwaitRun(ctx context.Context, runID int64) error
 	RunFinished(runID int64) (bool, error)
 	ResultsForRun(ctx context.Context, runID int64) ([]interface{}, error)
+	DeleteRunsOlderThan(threshold time.Duration) error
 
 	FindBridge(name models.TaskType) (models.BridgeType, error)
 }
@@ -269,6 +270,14 @@ func (o *orm) processNextUnclaimedTaskRun(ctx context.Context, fn ProcessTaskRun
 		if err != nil {
 			return errors.Wrap(err, "could not mark pipeline_task_run as finished")
 		}
+
+		if ptRun.PipelineTaskSpec.IsFinalPipelineOutput() {
+			err = tx.Exec(`UPDATE pipeline_runs SET finished_at = ? WHERE id = ?`, time.Now(), ptRun.PipelineTaskSpecID).Error
+			if err != nil {
+				return errors.Wrap(err, "could not mark pipeline_run as finished")
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -276,11 +285,12 @@ func (o *orm) processNextUnclaimedTaskRun(ctx context.Context, fn ProcessTaskRun
 	}
 
 	// Emit a Postgres notification if this is the final `ResultTask`
-	if ptRun.PipelineTaskSpec.SuccessorID.IsZero() {
+	if ptRun.PipelineTaskSpec.IsFinalPipelineOutput() {
 		err = o.db.Exec(`SELECT pg_notify('pipeline_run_completed', ?::text);`, ptRun.PipelineRunID).Error
 		if err != nil {
 			return errors.Wrap(err, "could not notify pipeline_run_completed")
 		}
+		logger.Infow("Pipeline run completed", "runID", ptRun.PipelineRunID)
 	}
 	return nil
 }
@@ -312,10 +322,14 @@ func (o *orm) ListenForNewRuns() (*utils.PostgresEventListener, error) {
 func (o *orm) AwaitRun(ctx context.Context, runID int64) error {
 	// This goroutine polls the DB at a set interval
 	chPoll := make(chan error)
+	chDone := make(chan struct{})
+	defer close(chDone)
 	go func() {
 		var err error
 		for {
 			select {
+			case <-chDone:
+				return
 			case <-ctx.Done():
 				return
 			default:
@@ -331,6 +345,7 @@ func (o *orm) AwaitRun(ctx context.Context, runID int64) error {
 
 		select {
 		case chPoll <- err:
+		case <-chDone:
 		case <-ctx.Done():
 		}
 	}()
@@ -413,6 +428,14 @@ func (o *orm) RunFinished(runID int64) (bool, error) {
         WHERE pipeline_task_runs.pipeline_run_id = ? AND pipeline_task_specs.successor_id IS NULL
     `, runID).Scan(&done).Error
 	return done.Done, errors.Wrapf(err, "could not determine if run is finished (run ID: %v)", runID)
+}
+
+func (o *orm) DeleteRunsOlderThan(threshold time.Duration) error {
+	err := o.db.Exec(`DELETE FROM pipeline_runs WHERE finished_at < ?`, time.Now().Add(-threshold)).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *orm) FindBridge(name models.TaskType) (models.BridgeType, error) {

@@ -237,6 +237,7 @@ func (app *ChainlinkApplication) Stop() error {
 		}()
 		logger.Info("Gracefully exiting...")
 
+		app.LogBroadcaster.Stop()
 		app.Scheduler.Stop()
 		merr = multierr.Append(merr, app.HeadTracker.Stop())
 		merr = multierr.Append(merr, app.balanceMonitor.Stop())
@@ -246,8 +247,8 @@ func (app *ChainlinkApplication) Stop() error {
 		app.RunQueue.Stop()
 		merr = multierr.Append(merr, app.StatsPusher.Close())
 		merr = multierr.Append(merr, app.SessionReaper.Stop())
-		app.jobSpawner.Stop()
 		app.pipelineRunner.Stop()
+		app.jobSpawner.Stop()
 		merr = multierr.Append(merr, app.Store.Close())
 	})
 	return merr

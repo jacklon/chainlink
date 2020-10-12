@@ -142,7 +142,6 @@ func (fm *concreteFluxMonitor) Stop() {
 		return
 	}
 
-	fm.logBroadcaster.Stop()
 	close(fm.chStop)
 	if fm.started {
 		fm.started = false

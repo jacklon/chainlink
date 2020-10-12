@@ -56,6 +56,8 @@ type ConfigSchema struct {
 	JobPipelineDBPollInterval             time.Duration   `env:"JOB_PIPELINE_DB_POLL_INTERVAL" default:"10s"`
 	JobPipelineMaxTaskDuration            time.Duration   `env:"JOB_PIPELINE_MAX_TASK_DURATION" default:"10m"`
 	JobPipelineParallelism                uint8           `env:"JOB_PIPELINE_PARALLELISM" default:"4"`
+	JobPipelineReaperInterval             time.Duration   `env:"JOB_PIPELINE_REAPER_INTERVAL" default:"1h"`
+	JobPipelineReaperThreshold            time.Duration   `env:"JOB_PIPELINE_REAPER_THRESHOLD" default:"7d"`
 	JSONConsole                           bool            `env:"JSON_CONSOLE" default:"false"`
 	LinkContractAddress                   string          `env:"LINK_CONTRACT_ADDRESS" default:"0x514910771AF9Ca656af840dff83E8264EcF986CA"`
 	ExplorerURL                           *url.URL        `env:"EXPLORER_URL"`

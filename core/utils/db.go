@@ -96,7 +96,7 @@ func (p *PostgresEventListener) Start() error {
 				if !open {
 					return
 				}
-				logger.Infow("Postgres listener: received notification",
+				logger.Debugw("Postgres listener: received notification",
 					"channel", notification.Channel,
 					"payload", notification.Extra,
 				)

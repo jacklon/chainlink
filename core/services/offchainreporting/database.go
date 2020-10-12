@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	// "github.com/ethereum/go-ethereum/common"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 
@@ -72,32 +72,33 @@ ON CONFLICT (offchainreporting_oracle_spec_id, config_digest) DO UPDATE SET
 }
 
 func (d *db) ReadConfig(ctx context.Context) (c *ocrtypes.ContractConfig, err error) {
-	q := d.QueryRowContext(ctx, `
-SELECT config_digest, signers, transmitters, threshold, encoded_config_version, encoded
-FROM offchainreporting_contract_configs
-WHERE offchainreporting_oracle_spec_id = $1
-LIMIT 1`, d.oracleSpecID)
+	return nil, nil
+	// 	q := d.QueryRowContext(ctx, `
+	// SELECT config_digest, signers, transmitters, threshold, encoded_config_version, encoded
+	// FROM offchainreporting_contract_configs
+	// WHERE offchainreporting_oracle_spec_id = $1
+	// LIMIT 1`, d.oracleSpecID)
 
-	c = new(ocrtypes.ContractConfig)
+	// 	c = new(ocrtypes.ContractConfig)
 
-	var signers [][]byte
-	var transmitters [][]byte
+	// 	var signers [][]byte
+	// 	var transmitters [][]byte
 
-	err = q.Scan(&c.ConfigDigest, (*pq.ByteaArray)(&signers), (*pq.ByteaArray)(&transmitters), &c.Threshold, &c.EncodedConfigVersion, &c.Encoded)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	} else if err != nil {
-		return nil, errors.Wrap(err, "ReadConfig failed")
-	}
+	// 	err = q.Scan(&c.ConfigDigest, (*pq.ByteaArray)(&signers), (*pq.ByteaArray)(&transmitters), &c.Threshold, &c.EncodedConfigVersion, &c.Encoded)
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		return nil, nil
+	// 	} else if err != nil {
+	// 		return nil, errors.Wrap(err, "ReadConfig failed")
+	// 	}
 
-	for _, s := range signers {
-		c.Signers = append(c.Signers, common.BytesToAddress(s))
-	}
-	for _, t := range transmitters {
-		c.Transmitters = append(c.Transmitters, common.BytesToAddress(t))
-	}
+	// 	for _, s := range signers {
+	// 		c.Signers = append(c.Signers, common.BytesToAddress(s))
+	// 	}
+	// 	for _, t := range transmitters {
+	// 		c.Transmitters = append(c.Transmitters, common.BytesToAddress(t))
+	// 	}
 
-	return
+	// 	return
 }
 
 func (d *db) WriteConfig(ctx context.Context, c ocrtypes.ContractConfig) error {

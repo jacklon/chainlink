@@ -1,7 +1,6 @@
 package offchainreporting
 
 import (
-	"github.com/smartcontractkit/chainlink/core/logger"
 	"sync"
 
 	"github.com/jinzhu/gorm"
@@ -9,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/multierr"
 
+	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/store/models/ocrkey"
 	"github.com/smartcontractkit/chainlink/core/store/models/p2pkey"

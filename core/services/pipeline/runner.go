@@ -18,7 +18,7 @@ type (
 		Stop()
 		CreateRun(ctx context.Context, jobID int32, meta map[string]interface{}) (int64, error)
 		AwaitRun(ctx context.Context, runID int64) error
-		ResultsForRun(ctx context.Context, runID int64) ([]interface{}, error)
+		ResultsForRun(ctx context.Context, runID int64) ([]Result, error)
 	}
 
 	runner struct {
@@ -123,7 +123,7 @@ func (r *runner) AwaitRun(ctx context.Context, runID int64) error {
 	return r.orm.AwaitRun(ctx, runID)
 }
 
-func (r *runner) ResultsForRun(ctx context.Context, runID int64) ([]interface{}, error) {
+func (r *runner) ResultsForRun(ctx context.Context, runID int64) ([]Result, error) {
 	ctx, cancel := utils.CombinedContext(r.chStop, ctx)
 	defer cancel()
 	return r.orm.ResultsForRun(ctx, runID)
@@ -193,7 +193,7 @@ func (r *runner) processTaskRun() (anyRemaining bool, err error) {
 		}
 
 		result := task.Run(taskRun, inputs)
-		if result.Error != nil {
+		if _, is := result.Error.(FinalErrors); !is && result.Error != nil {
 			logger.Errorw("Pipeline task run errored", append(loggerFields, "error", result.Error)...)
 		} else {
 			logger.Infow("Pipeline task completed", append(loggerFields, "result", result.Value)...)

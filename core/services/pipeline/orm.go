@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -133,9 +134,9 @@ func (o *orm) CreateRun(ctx context.Context, jobID int32, meta map[string]interf
 		// Create the task runs
 		err = tx.Exec(`
             INSERT INTO pipeline_task_runs (
-            	pipeline_run_id, pipeline_task_spec_id, index, created_at
+            	pipeline_run_id, pipeline_task_spec_id, type, index, created_at
             )
-            SELECT ? AS pipeline_run_id, id AS pipeline_task_spec_id, index, NOW() AS created_at
+            SELECT ? AS pipeline_run_id, id AS pipeline_task_spec_id, type, index, NOW() AS created_at
             FROM pipeline_task_specs
             WHERE pipeline_spec_id = ?`, run.ID, run.PipelineSpecID).Error
 		return errors.Wrap(err, "could not create pipeline task runs")
@@ -227,6 +228,7 @@ func (o *orm) processNextUnclaimedTaskRun(ctx context.Context, fn ProcessTaskRun
 
 		// Find all the predecessor task runs
 		err = tx.
+			Preload("PipelineTaskSpec").
 			Raw(`
                 SELECT pipeline_task_runs.* FROM pipeline_task_runs
                 INNER JOIN pipeline_task_specs AS specs_right ON specs_right.id = pipeline_task_runs.pipeline_task_spec_id
@@ -263,6 +265,9 @@ func (o *orm) processNextUnclaimedTaskRun(ctx context.Context, fn ProcessTaskRun
 		var errString null.String
 		if result.Value != nil {
 			out = &JSONSerializable{Val: result.Value}
+		}
+		if finalErrors, is := result.Error.(FinalErrors); is {
+			errString = null.StringFrom(finalErrors.Error())
 		} else if result.Error != nil {
 			logger.Errorw("Error in pipeline task", "error", result.Error)
 			errString = null.StringFrom(result.Error.Error())
@@ -402,31 +407,31 @@ func (o *orm) ResultsForRun(ctx context.Context, runID int64) ([]Result, error) 
 			return errors.Wrapf(err, "Pipeline runner could not fetch pipeline results (runID: %v)", runID)
 		}
 
-		result := resultTaskRun.Result()
-		values, is := result.Value.([]interface{})
-		if !is {
-			return errors.Errorf("Pipeline runner invariant violation: result task run's output must be []interface{}, got %T", result.Value)
+		var values []interface{}
+		var errs FinalErrors
+		if resultTaskRun.Output != nil && resultTaskRun.Output.Val != nil {
+			vals, is := resultTaskRun.Output.Val.([]interface{})
+			if !is {
+				return errors.Errorf("Pipeline runner invariant violation: result task run's output must be []interface{}, got %T", resultTaskRun.Output.Val)
+			}
+			values = vals
 		}
-		errors, is := result.Error.([]interface{})
-		if !is {
-			return errors.Errorf("Pipeline runner invariant violation: result task run's errors must be []interface{}, got %T", result.Error)
+		if !resultTaskRun.Error.IsZero() {
+			err = json.Unmarshal([]byte(resultTaskRun.Error.ValueOrZero()), &errs)
+			if err != nil {
+				return errors.Errorf("Pipeline runner invariant violation: result task run's errors must be []error, got %v", resultTaskRun.Error.ValueOrZero())
+			}
 		}
-		if len(values) != len(errors) {
-			return errors.Errorf("Pipeline runner invariant violation: result task run must have equal numbers of outputs and errors (got %v and %v)", len(values), len(errors))
+		if len(values) != len(errs) {
+			return errors.Errorf("Pipeline runner invariant violation: result task run must have equal numbers of outputs and errors (got %v and %v)", len(values), len(errs))
 		}
 		results = make([]Result, len(values))
 		for i := range values {
 			results[i].Value = values[i]
-
-			switch err := errors[i].(type) {
-			case string:
-				results[i].Error = errors.New(err)
-			case nil:
-			default:
-				return errors.Errorf("Pipeline runner invariant violation: result task run errors must be strings or nil, got %T (%v)", errors[i], errors[i])
+			if !errs[i].IsZero() {
+				results[i].Error = errors.New(errs[i].ValueOrZero())
 			}
 		}
-
 		return nil
 	})
 	return results, err

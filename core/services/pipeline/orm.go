@@ -23,7 +23,7 @@ type ORM interface {
 	ListenForNewRuns() (*utils.PostgresEventListener, error)
 	AwaitRun(ctx context.Context, runID int64) error
 	RunFinished(runID int64) (bool, error)
-	ResultsForRun(ctx context.Context, runID int64) ([]interface{}, error)
+	ResultsForRun(ctx context.Context, runID int64) ([]Result, error)
 	DeleteRunsOlderThan(threshold time.Duration) error
 
 	FindBridge(name models.TaskType) (models.BridgeType, error)
@@ -168,6 +168,7 @@ func (o *orm) ProcessNextUnclaimedTaskRun(ctx context.Context, fn ProcessTaskRun
 		} else if err != nil {
 			retry = true
 			err = errors.Wrap(err, "Pipeline runner could not process task run")
+
 		} else {
 			anyRemaining = true
 			retry = false
@@ -374,10 +375,7 @@ func (o *orm) AwaitRun(ctx context.Context, runID int64) error {
 	}
 }
 
-func (o *orm) ResultsForRun(ctx context.Context, runID int64) ([]interface{}, error) {
-	var runResults []interface{}
-	var runError error
-
+func (o *orm) ResultsForRun(ctx context.Context, runID int64) ([]Result, error) {
 	done, err := o.RunFinished(runID)
 	if err != nil {
 		return nil, err
@@ -388,6 +386,7 @@ func (o *orm) ResultsForRun(ctx context.Context, runID int64) ([]interface{}, er
 	ctx, cancel := utils.CombinedContext(ctx, o.config.DatabaseMaximumTxDuration())
 	defer cancel()
 
+	var results []Result
 	err = utils.GormTransaction(ctx, o.db, func(tx *gorm.DB) error {
 		var resultTaskRun TaskRun
 		err = o.db.
@@ -404,19 +403,33 @@ func (o *orm) ResultsForRun(ctx context.Context, runID int64) ([]interface{}, er
 		}
 
 		result := resultTaskRun.Result()
-		slice, is := result.Value.([]interface{})
+		values, is := result.Value.([]interface{})
 		if !is {
 			return errors.Errorf("Pipeline runner invariant violation: result task run's output must be []interface{}, got %T", result.Value)
 		}
+		errors, is := result.Error.([]interface{})
+		if !is {
+			return errors.Errorf("Pipeline runner invariant violation: result task run's errors must be []interface{}, got %T", result.Error)
+		}
+		if len(values) != len(errors) {
+			return errors.Errorf("Pipeline runner invariant violation: result task run must have equal numbers of outputs and errors (got %v and %v)", len(values), len(errors))
+		}
+		results = make([]Result, len(values))
+		for i := range values {
+			results[i].Value = values[i]
 
-		runResults = slice
-		runError = result.Error
+			switch err := errors[i].(type) {
+			case string:
+				results[i].Error = errors.New(err)
+			case nil:
+			default:
+				return errors.Errorf("Pipeline runner invariant violation: result task run errors must be strings or nil, got %T (%v)", errors[i], errors[i])
+			}
+		}
+
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return runResults, runError
+	return results, err
 }
 
 func (o *orm) RunFinished(runID int64) (bool, error) {

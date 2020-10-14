@@ -21,15 +21,14 @@ func (t *ResultTask) Type() TaskType {
 	return TaskTypeResult
 }
 
-func (t *ResultTask) Run(taskRun TaskRun, inputs []Result) (result Result) {
-	var values []interface{}
-	for _, input := range inputs {
-		if input.Error != nil {
-			result.Error = multierr.Append(result.Error, input.Error)
-		} else {
-			values = append(values, input.Value)
-		}
+func (t *ResultTask) Run(taskRun TaskRun, inputs []Result) Result {
+	values := make([]interface{}, len(inputs))
+	errors := make([]interface{}, len(inputs))
+	for i, input := range inputs {
+		values[i] = input.Value
+		errors[i] = input.Error
 	}
 	result.Value = values
+	result.Error = errors
 	return result
 }

@@ -82,7 +82,7 @@ func TestORM(t *testing.T) {
 		err := g.UnmarshalText([]byte(dotStr))
 		require.NoError(t, err)
 
-		specID, err = orm.CreateSpec(*g)
+		specID, err = orm.CreateSpec(context.Background(), *g)
 		require.NoError(t, err)
 
 		var specs []pipeline.Spec
@@ -135,7 +135,7 @@ func TestORM(t *testing.T) {
 		ocrSpec, dbSpec := makeOCRJobSpec(t, db)
 
 		// Need a job in order to create a run
-		err := jobORM.CreateJob(dbSpec, ocrSpec.TaskDAG())
+		err := jobORM.CreateJob(context.Background(), dbSpec, ocrSpec.TaskDAG())
 		require.NoError(t, err)
 
 		var pipelineSpecs []pipeline.Spec
@@ -155,7 +155,7 @@ func TestORM(t *testing.T) {
 		}
 
 		// Create the run
-		runID, err = orm.CreateRun(dbSpec.ID, nil)
+		runID, err = orm.CreateRun(context.Background(), dbSpec.ID, nil)
 		require.NoError(t, err)
 
 		// Check the DB for the pipeline.Run
@@ -245,11 +245,11 @@ func TestORM(t *testing.T) {
 				ocrSpec, dbSpec := makeOCRJobSpec(t, db)
 
 				// Need a job in order to create a run
-				err := jobORM.CreateJob(dbSpec, ocrSpec.TaskDAG())
+				err := jobORM.CreateJob(context.Background(), dbSpec, ocrSpec.TaskDAG())
 				require.NoError(t, err)
 
 				// Create the run
-				runID, err = orm.CreateRun(dbSpec.ID, nil)
+				runID, err = orm.CreateRun(context.Background(), dbSpec.ID, nil)
 				require.NoError(t, err)
 
 				// Set up a goroutine to await the run's completion
@@ -292,7 +292,7 @@ func TestORM(t *testing.T) {
 				{
 					var done bool
 					for !done {
-						done, err = orm.ProcessNextUnclaimedTaskRun(func(jobID int32, taskRun pipeline.TaskRun, predecessorRuns []pipeline.TaskRun) pipeline.Result {
+						done, err = orm.ProcessNextUnclaimedTaskRun(context.Background(), func(jobID int32, taskRun pipeline.TaskRun, predecessorRuns []pipeline.TaskRun) pipeline.Result {
 							// Ensure we don't fetch the locked task run
 							require.NotEqual(t, locked.ID, taskRun.ID)
 
@@ -334,7 +334,7 @@ func TestORM(t *testing.T) {
 					<-chUnlocked
 					time.Sleep(3 * time.Second)
 
-					done, err := orm.ProcessNextUnclaimedTaskRun(func(jobID int32, taskRun pipeline.TaskRun, predecessorRuns []pipeline.TaskRun) pipeline.Result {
+					done, err := orm.ProcessNextUnclaimedTaskRun(context.Background(), func(jobID int32, taskRun pipeline.TaskRun, predecessorRuns []pipeline.TaskRun) pipeline.Result {
 						// Ensure the predecessors' answers match what we expect
 						for _, p := range predecessorRuns {
 							_, exists := test.answers[p.DotID()]
@@ -357,7 +357,7 @@ func TestORM(t *testing.T) {
 
 				// Ensure that the ORM doesn't think there are more runs
 				{
-					done, err := orm.ProcessNextUnclaimedTaskRun(func(jobID int32, taskRun pipeline.TaskRun, predecessorRuns []pipeline.TaskRun) pipeline.Result {
+					done, err := orm.ProcessNextUnclaimedTaskRun(context.Background(), func(jobID int32, taskRun pipeline.TaskRun, predecessorRuns []pipeline.TaskRun) pipeline.Result {
 						t.Fatal("this callback should never be reached")
 						return pipeline.Result{}
 					})
@@ -389,7 +389,7 @@ func TestORM(t *testing.T) {
 				}
 
 				// Ensure that we can retrieve the correct results by calling .ResultsForRun
-				results, err := orm.ResultsForRun(runID)
+				results, err := orm.ResultsForRun(context.Background(), runID)
 				require.NoError(t, err)
 				require.Len(t, results, 2)
 

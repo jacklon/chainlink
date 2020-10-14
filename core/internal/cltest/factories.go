@@ -831,3 +831,9 @@ func MustInsertOffchainreportingOracleSpec(t *testing.T, store *strpkg.Store) mo
 	require.NoError(t, store.DB.Create(&spec).Error)
 	return spec
 }
+
+func MustInsertJobSpec(t *testing.T, s *strpkg.Store) models.JobSpec {
+	j := NewJob()
+	require.NoError(t, s.CreateJob(&j))
+	return j
+}

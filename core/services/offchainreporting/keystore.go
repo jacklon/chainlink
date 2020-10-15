@@ -18,7 +18,7 @@ type KeyStore struct {
 	*gorm.DB
 	p2pkeys map[models.PeerID]p2pkey.Key
 	ocrkeys map[models.Sha256Hash]ocrkey.KeyBundle
-	mu      sync.RWMutex
+	mu      *sync.RWMutex
 }
 
 func NewKeyStore(db *gorm.DB) *KeyStore {
@@ -26,6 +26,7 @@ func NewKeyStore(db *gorm.DB) *KeyStore {
 		DB:      db,
 		p2pkeys: make(map[models.PeerID]p2pkey.Key),
 		ocrkeys: make(map[models.Sha256Hash]ocrkey.KeyBundle),
+		mu:      new(sync.RWMutex),
 	}
 }
 
@@ -104,7 +105,7 @@ func (ks KeyStore) UpsertEncryptedP2PKey(k *p2pkey.EncryptedP2PKey) error {
 }
 
 func (ks KeyStore) FindEncryptedP2PKeys() (keys []p2pkey.EncryptedP2PKey, err error) {
-	return keys, ks.Find(&keys).Error
+	return keys, ks.Order("created_at asc, id asc").Find(&keys).Error
 }
 
 func (ks KeyStore) FindEncryptedP2PKeyByID(id int32) (*p2pkey.EncryptedP2PKey, error) {
@@ -144,7 +145,7 @@ func (ks KeyStore) CreateEncryptedOCRKeyBundle(encryptedKey *ocrkey.EncryptedKey
 
 // FindEncryptedOCRKeyBundles finds all the encrypted OCR key records
 func (ks KeyStore) FindEncryptedOCRKeyBundles() (keys []ocrkey.EncryptedKeyBundle, err error) {
-	err = ks.Find(&keys).Error
+	err = ks.Order("created_at asc, id asc").Find(&keys).Error
 	return keys, err
 }
 

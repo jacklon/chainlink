@@ -213,7 +213,11 @@ func (ds dataSource) Observe(ctx context.Context) (ocrtypes.Observation, error) 
 		return nil, errors.Errorf("offchain reporting pipeline should have a single output (job spec ID: %v, pipeline run ID: %v)", ds.jobID, runID)
 	}
 
-	asDecimal, err := utils.ToDecimal(results[0])
+	if results[0].Error != nil {
+		return nil, results[0].Error
+	}
+
+	asDecimal, err := utils.ToDecimal(results[0].Value)
 	if err != nil {
 		return nil, err
 	}

@@ -228,8 +228,8 @@ func (b *logBroadcaster) startResubscribeLoop() {
 		//     remaining logs from last subscription <= backfilled logs <= logs from new subscription
 		// There will be duplicated logs in this channel.  It is the responsibility of subscribers
 		// to account for this using the helpers on the LogBroadcast type.
-		chRawLogs = appendLogChannel(chRawLogs, chBackfilledLogs)
-		chRawLogs = appendLogChannel(chRawLogs, newSubscription.Logs())
+		chRawLogs = b.appendLogChannel(chRawLogs, chBackfilledLogs)
+		chRawLogs = b.appendLogChannel(chRawLogs, newSubscription.Logs())
 		subscription.Unsubscribe()
 		subscription = newSubscription
 
@@ -244,6 +244,38 @@ func (b *logBroadcaster) startResubscribeLoop() {
 			return
 		}
 	}
+}
+
+func (b *logBroadcaster) appendLogChannel(ch1, ch2 <-chan types.Log) chan types.Log {
+	if ch1 == nil && ch2 == nil {
+		return nil
+	}
+
+	chCombined := make(chan types.Log)
+
+	go func() {
+		defer close(chCombined)
+		if ch1 != nil {
+			for rawLog := range ch1 {
+				select {
+				case chCombined <- rawLog:
+				case <-b.chStop:
+					return
+				}
+			}
+		}
+		if ch2 != nil {
+			for rawLog := range ch2 {
+				select {
+				case chCombined <- rawLog:
+				case <-b.chStop:
+					return
+				}
+			}
+		}
+	}()
+
+	return chCombined
 }
 
 func (b *logBroadcaster) backfillLogs() (chBackfilledLogs chan types.Log, abort bool) {
@@ -573,28 +605,4 @@ func (l *decodingLogListener) HandleLog(lb LogBroadcast, err error) {
 
 	lb.SetDecodedLog(decodedLog)
 	l.LogListener.HandleLog(lb, nil)
-}
-
-func appendLogChannel(ch1, ch2 <-chan types.Log) chan types.Log {
-	if ch1 == nil && ch2 == nil {
-		return nil
-	}
-
-	chCombined := make(chan types.Log)
-
-	go func() {
-		defer close(chCombined)
-		if ch1 != nil {
-			for rawLog := range ch1 {
-				chCombined <- rawLog
-			}
-		}
-		if ch2 != nil {
-			for rawLog := range ch2 {
-				chCombined <- rawLog
-			}
-		}
-	}()
-
-	return chCombined
 }

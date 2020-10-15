@@ -202,11 +202,8 @@ func (sub *OCRContractConfigSubscription) processLogs() {
 	sub.queueMu.Lock()
 	defer sub.queueMu.Unlock()
 	for len(sub.queue) > 0 {
-		var cc ocrtypes.ContractConfig
-		func() {
-			cc = sub.queue[0]
-			sub.queue = sub.queue[1:]
-		}()
+		cc := sub.queue[0]
+		sub.queue = sub.queue[1:]
 
 		select {
 		// NOTE: This is thread-safe because HandleLog cannot be called concurrently with Unregister due to the design of LogBroadcaster
